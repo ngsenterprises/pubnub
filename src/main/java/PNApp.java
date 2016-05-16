@@ -16,6 +16,9 @@ import com.pubnub.api.*;
 class MyDataCallback extends Callback {
     public static final int dataSize = 500;
     public Pubnub context = null;
+
+    List<Integer> data = new ArrayList<Integer>();
+
     List<Integer> lower = new ArrayList<Integer>();
     List<Integer> pivoted = new ArrayList<Integer>();
     List<Integer> upper = new ArrayList<Integer>();
@@ -82,8 +85,11 @@ class Worker extends MyDataCallback {
     public Worker(String supervisor, Pubnub cxt) {
         //System.out.println();
         Random rnd = new Random();
-        for (int i = 0; i < dataSize; i++)
-            lower.add(rnd.nextInt(100));
+        for (int i = 0; i < dataSize; i++) {
+            int ri = rnd.nextInt(100);
+            data.add(ri);
+            lower.add(ri);
+        }
         context = cxt;
         this.supervisor = supervisor;
         //printNums(lower);
@@ -203,8 +209,11 @@ class Supervisor extends MyDataCallback {
 
     public Supervisor(String[] ws, Pubnub cxt) {
         Random rnd = new Random();
-        for (int i = 0; i < dataSize; i++)
-            lower.add(rnd.nextInt(100));
+        for (int i = 0; i < dataSize; i++) {
+            int ri = rnd.nextInt(100);
+            data.add(ri);
+            lower.add(ri);
+        }
         workers = ws.clone();
         context = cxt;
     }
