@@ -21,13 +21,13 @@ class MyDataCallback extends Callback {
     List<Integer> upper = new ArrayList<Integer>();
 
     public void printNums(List<Integer> pnums) {
-        System.out.println();
-        System.out.print("nums: [");
+        //System.out.println();
+        System.out.print("(");
         if (0 < pnums.size())
             System.out.print(pnums.get(0));
         for (int i = 1; i < pnums.size(); i++)
             System.out.print(", " +pnums.get(i));
-        System.out.println("]");
+        System.out.println(")");
     }
 
     public void doPivot(List<Integer> d, Integer pivot) {
@@ -39,6 +39,25 @@ class MyDataCallback extends Callback {
             else if (k == pivot) pivoted.add(k);
             else upper.add(k);
         }
+
+        System.out.println();
+        System.out.println("Worker doPivot:  " +pivot);
+        System.out.print("lower: ");
+        printNums(lower);
+        System.out.print("pivoted: ");
+        printNums(pivoted);
+        System.out.print("upper: ");
+        printNums(upper);
+
+//        for (int i = 0; i < lower.size(); i++) System.out.print(lower.get(i) +",");
+//        System.out.println(")");
+//        System.out.print("pivoted: (");
+//        for (int i = 0; i < pivoted.size(); i++) System.out.print(pivoted.get(i) +",");
+//        System.out.println(")");
+//        System.out.print("upper: (");
+//        for (int i = 0; i < upper.size(); i++) System.out.print(upper.get(i) +",");
+//        System.out.println(")");
+
     }
 
     public List<Integer> getSegment(String seg) {
@@ -127,16 +146,21 @@ class Worker extends MyDataCallback {
                 try {
                     int lowersize = lower.size();
                     int uppersize = upper.size();
+                    //System.out.println("L: " + lowersize +" P: " +pivoted.size() +" U: " +uppersize);
                     jsonObj = new JSONObject();
                     jsonObj.put("iteration", iteration);
                     jsonObj.put("lowersize", lowersize);
                     jsonObj.put("pivotedsize", pivoted.size());
                     jsonObj.put("uppersize", uppersize);
                     //jsonObj.put("pivotused", pivot);
-                    if (0 < lower.size()) jsonObj.put("lowerpivot", lower.get(lowersize -1));
-                    else jsonObj.put("lowerpivot", -1);
-                    if (0 < upper.size()) jsonObj.put("upperpivot", upper.get(uppersize -1));
-                    else jsonObj.put("upperpivot", -1);
+                    if (0 < lower.size())
+                        jsonObj.put("lowerpivot", lower.get(lowersize -1));
+                    else
+                        jsonObj.put("lowerpivot", -1);
+                    if (0 < upper.size())
+                        jsonObj.put("upperpivot", upper.get(uppersize -1));
+                    else
+                        jsonObj.put("upperpivot", -1);
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
@@ -162,15 +186,20 @@ class Worker extends MyDataCallback {
 class Supervisor extends MyDataCallback {
 
     String[] workers;
-    //private int currentIteration = -1;
+    private int currentIteration = -1;
     private int nextIteration = -1;
     List<JSONObject> itrBldr = new ArrayList<JSONObject>();
-    int aggDataSize = 0;
+    //int aggDataSize = 0;
     List<Integer> medianOffsets = new ArrayList<Integer>();
     List<Integer> medianValues = new ArrayList<Integer>();
     //int pivotLB = Integer.MIN_VALUE;
     //int pivotUB = Integer.MAX_VALUE;
     int pivotLast;
+
+
+
+
+
 
     public Supervisor(String[] ws, Pubnub cxt) {
         Random rnd = new Random();
@@ -180,9 +209,25 @@ class Supervisor extends MyDataCallback {
         context = cxt;
     }
 
+    public void abEnd() {
+        context.shutdown();
+    }
+
+    public double terminate() {
+        double sum = 0.0;
+        for (int r: medianValues)
+            sum += (double)r;
+        double median = sum/(double)medianValues.size();
+        System.out.println("median: " +median);
+
+        context.shutdown();
+        return median;
+    }
+
+
     public int getNextIteration() {
-        //currentIteration = nextIteration;
         nextIteration += 1;
+        currentIteration = nextIteration;
         return nextIteration;
     }
 
@@ -191,7 +236,8 @@ class Supervisor extends MyDataCallback {
         List<Integer> ta = new ArrayList<Integer>();
         List<Integer> dat = getSegment(segment);
         pivotLast = pivot;
-        for (int i : dat) ta.add(i);
+        for (int i : dat)
+            ta.add(i);
 
         doPivot(ta, pivot);
 
@@ -206,7 +252,8 @@ class Supervisor extends MyDataCallback {
         }
 
         if (jsonObj != null) {
-            for (String w : workers) pb.publish(w, jsonObj, new Callback() {});
+            for (String w : workers)
+                pb.publish(w, jsonObj, new Callback() {});
             try {
                 Thread.sleep(1000);
             } catch (InterruptedException e) {
@@ -260,10 +307,9 @@ class Supervisor extends MyDataCallback {
                 if (itrBldr.size() < workers.length) {
                     itrBldr.add(jsonObject);
                     if (itrBldr.size() == workers.length) {
-                        aggDataSize = 0;
+                        int aggDataSize = lower.size();
                         for (JSONObject jo : itrBldr)
                             aggDataSize += (Integer) jo.get("datasize");
-                        aggDataSize += lower.size();
                         System.out.println("aggDataSize: " + aggDataSize);
 
                         int m0 = aggDataSize / 2 - 1;
@@ -277,7 +323,7 @@ class Supervisor extends MyDataCallback {
                     }
                 }
             }
-            else {//if (iteration == currentIteration +1) {
+            else if (iteration == currentIteration) {
                 if (itrBldr.size() < workers.length) {
                     itrBldr.add(jsonObject);
                     if (itrBldr.size() == workers.length) {
@@ -285,68 +331,109 @@ class Supervisor extends MyDataCallback {
                         List<Integer> lpivots = new ArrayList<Integer>();
                         List<Integer> upivots = new ArrayList<Integer>();
 
-                        int aggLowerSize = 0;
-                        int aggPivotedSize = 0;
+                        int aggLowerSize = lower.size();
+                        int aggPivotedSize = pivoted.size();
                         for (JSONObject jo: itrBldr) {
                             aggLowerSize += jo.getInt("lowersize");
-                            aggPivotedSize += jo.getInt("uppersize");
+                            aggPivotedSize += jo.getInt("pivotedsize");
                             int p = jo.getInt("lowerpivot");
-                            if (0 <= p) lpivots.add(p);
+                            if (0 <= p)
+                                lpivots.add(p);
                             p = jo.getInt("upperpivot");
-                            if (0 <= p) upivots.add(p);
+                            if (0 <= p)
+                                upivots.add(p);
                         }
-                        aggLowerSize += lower.size();
-                        aggPivotedSize += pivoted.size();
-                        if (0 < lower.size()) lpivots.add(lower.get(0));
-                        if (0 < upper.size()) upivots.add(upper.get(0));
+                        if (0 < lower.size())
+                            lpivots.add(lower.get(0));
+                        if (0 < upper.size())
+                            upivots.add(upper.get(0));
+
+                        System.out.println();
+                        System.out.println("CONDENSE ITERATION: " +iteration);
+                        System.out.println("aggLowerSize: " +aggLowerSize);
+                        System.out.println("aggPivotedSize: " +aggPivotedSize);
+                        System.out.println("lower pivot cache size: " + lpivots.size());
+                        System.out.println("upper pivot cache size: " + upivots.size());
 
                         int lastMedianIndex = medianOffsets.size() -1;
+
+                        //LOWER SEGMENT COMPLETE
                         if (medianOffsets.get(lastMedianIndex) < aggLowerSize) {
-                            doPivot(lower, lpivots.get(0));
-                            doIteration(context, "lower", lpivots.get(0));
+                            if (!lpivots.isEmpty()) {
+                                doIteration(context, "lower", lpivots.get(0));
+                            }
+                            else {
+                                System.out.println("ERROR: No lower pivot.");
+                                abEnd();
+                            }
                         }
-                        else if (1 < medianOffsets.size() && medianOffsets.get(lastMedianIndex) == aggLowerSize) {
+
+                        //LOWER SEGMENT PARTIALY PIVOTED
+                        else if (medianOffsets.get(lastMedianIndex) == aggLowerSize) {
                             medianValues.add(pivotLast);
                             medianOffsets.remove(1);
 
-                            doPivot(lower, lpivots.get(0));
-                            doIteration(context, "lower", lpivots.get(0));
+                            if (!medianOffsets.isEmpty()) {
+                                if (!lpivots.isEmpty()) {
+                                    doIteration(context, "lower", lpivots.get(0));
+                                }
+                                else {
+                                    System.out.print("ERROR: No lower pivot.");
+                                    abEnd();
+                                }
+                            }
+                            else
+                                terminate();
                         }
+
+                        //PIVOTED SEGMENT
                         else if (medianOffsets.get(lastMedianIndex) < aggLowerSize +aggPivotedSize) {
 
                             medianValues.add(pivotLast);
                             medianOffsets.remove(1);
-                            medianValues.add(pivotLast);
-                            medianOffsets.remove(0);
 
-                            double sum = 0.0;
-                            for (int r: medianValues)
-                                sum += (double)r;
-                            double median = sum/(double)medianValues.size();
-                            System.out.println("median: " +median);
-
-                            context.shutdown();
-                        }
-                        else if (1 < medianOffsets.size() && medianOffsets.get(0) == aggLowerSize +aggPivotedSize) {
-                            medianValues.add(pivotLast);
-                            medianOffsets.remove(0);
-
-                            for (int i = 0; i < medianOffsets.size(); i++) {
-                                int v = medianOffsets.get(i);
-                                medianOffsets.set(i, v -aggLowerSize -aggPivotedSize);
+                            if (!medianOffsets.isEmpty()) {
+                                medianValues.add(pivotLast);
+                                medianOffsets.remove(0);
                             }
-
-                            doPivot(upper, upivots.get(0));
-                            doIteration(context, "upper", upivots.get(0));
+                            terminate();
                         }
+
+                        //UPPER SEGMENT PARTIALLY PIVOTED
+                        else if (medianOffsets.get(0) == aggLowerSize +aggPivotedSize -1) {
+                            medianValues.add(pivotLast);
+                            medianOffsets.remove(0);
+
+                            if (!medianOffsets.isEmpty()) {
+                                int v = medianOffsets.get(0);
+                                medianOffsets.set(0, v -aggLowerSize -aggPivotedSize);
+
+                                if (!upivots.isEmpty()) {
+                                    doIteration(context, "upper", upivots.get(0));
+                                }
+                                else {
+                                    System.out.println("ERROR: No upper pivot.");
+                                    abEnd();
+                                }
+                            }
+                            else
+                                terminate();
+                        }
+
+                        //UPPER SEGMENT COMPLETE
                         else {
                             for (int i = 0; i < medianOffsets.size(); i++) {
                                 int v = medianOffsets.get(i);
                                 medianOffsets.set(i, v -aggLowerSize -aggPivotedSize);
                             }
 
-                            doPivot(upper, upivots.get(0));
-                            doIteration(context, "upper", upivots.get(0));
+                            if (!upivots.isEmpty()) {
+                                doIteration(context, "upper", upivots.get(0));
+                            }
+                            else {
+                                System.out.println("ERROR: No upper pivot.");
+                                abEnd();
+                            }
                         }
                         itrBldr.clear();
                     }
