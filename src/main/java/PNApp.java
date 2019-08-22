@@ -12,6 +12,8 @@ import org.json.JSONObject;
 
 import com.pubnub.api.*;
 
+// distributed median algorithm using the
+// PubNub publish/subscribe api
 
 class MyDataCallback extends Callback {
     public static final int dataSize = 500;
