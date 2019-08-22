@@ -1,5 +1,5 @@
 
-Distributed median algorithm simulation using the Pubnub async api.
+Distributed median algorithm using the Pubnub async api.
 
 Objects of the PubNub CallBack object are created to represent 
 distributed nodes.
